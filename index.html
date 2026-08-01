@@ -121,8 +121,49 @@ textarea.note{width:100%;background:var(--card2);border:1px solid var(--line);bo
 .bigbtn{display:block;width:100%;border-radius:99px;padding:15px;text-align:center;
   font-size:16px;font-weight:700;background:var(--acc);color:var(--acc-ink);margin:14px 0 6px}
 .bigbtn.done{background:rgba(74,222,128,.15);color:var(--green);border:1.5px solid var(--green)}
+.bigbtn.sec{background:var(--card);color:var(--acc);border:1.5px solid var(--acc-deep)}
+.bigbtn.start{background:linear-gradient(135deg,var(--acc),var(--acc-deep));color:var(--acc-ink);
+  display:flex;align-items:center;justify-content:center;gap:8px}
 .linkbtn{display:block;width:100%;text-align:center;color:var(--acc);font-weight:600;
   font-size:14.5px;padding:10px}
+
+/* tempo timer overlay */
+.tmr{position:fixed;inset:0;z-index:70;background:#090c14;display:flex;flex-direction:column;
+  padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
+.tmr .hd{text-align:center}
+.tmr .hd .nm{font-size:16px;font-weight:700}
+.tmr .hd .meta{color:var(--dim);font-size:14px;margin-top:4px}
+.tmr .hd .meta b{color:var(--txt)}
+.tmr .mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.tmr .phase{font-size:34px;font-weight:800;letter-spacing:2px;text-transform:uppercase}
+.tmr .phase.rest{color:var(--green)}
+.tmr .phase.ready{color:var(--amber)}
+.tmr .cnt{font-size:110px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.tmr .sub{color:var(--dim);font-size:14px;text-align:center;max-width:320px}
+.tmr .dots{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;justify-content:center}
+.tmr .dots span{width:9px;height:9px;border-radius:99px;background:var(--card2)}
+.tmr .dots span.on{background:var(--acc)}
+.tmr .dots span.cur{background:var(--amber)}
+.tmr .ctl{display:flex;gap:10px}
+.tmr .ctl button{flex:1;border-radius:14px;padding:15px;font-size:15px;font-weight:700;
+  background:var(--card);border:1px solid var(--line);color:var(--txt)}
+.tmr .ctl button.primary{background:var(--acc);color:var(--acc-ink);border:none}
+.tmr .ctl button.exit{color:var(--red)}
+
+/* metrics */
+.mrow{display:flex;align-items:center;gap:10px;margin:9px 0}
+.mrow label{flex:1;font-size:14.5px}
+.mrow label .u{color:var(--faint);font-size:12px}
+.mrow input{width:110px;background:var(--card2);border:1px solid var(--line);border-radius:10px;
+  color:var(--txt);padding:10px 8px;text-align:center;font-size:16px;-moz-appearance:textfield}
+.mrow input::-webkit-outer-spin-button,.mrow input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.mdate{background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--txt);
+  padding:9px 12px;font-size:15px;color-scheme:dark}
+.mhist{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line)}
+.mhist:last-child{border-bottom:none}
+.mhist .dt{font-weight:700;font-size:13.5px;width:84px;flex:none}
+.mhist .vals{flex:1;color:var(--dim);font-size:12.5px}
+.mhist .del{color:var(--faint);font-size:16px;padding:6px}
 
 /* accordions */
 details.acc{background:var(--card);border:1px solid var(--line);border-radius:14px;
@@ -188,11 +229,12 @@ const DATA = {"version":"v1.0 (2026-07-30)","phases":[{"name":"Phase 1 - Re-Entr
 'use strict';
 const LS_KEY = 'ptapp_v1';
 let storageOK = true;
-let S = { gaps: [], logs: {}, lights: {} };
+let S = { gaps: [], logs: {}, lights: {}, metrics: {} };
 try {
   const raw = localStorage.getItem(LS_KEY);
   if (raw) S = Object.assign(S, JSON.parse(raw));
   if (!Array.isArray(S.gaps)) S.gaps = [];
+  if (!S.metrics || typeof S.metrics !== 'object') S.metrics = {};
 } catch (e) { storageOK = false; }
 function save() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(S)); storageOK = true; }
@@ -297,6 +339,7 @@ function render() {
   if (parts[0] === 'routine') return vRoutine(+parts[1], parts[2]);
   if (parts[0] === 'ex') return vExercise(+parts[1], parts[2], +parts[3]);
   if (parts[0] === 'dict') return parts[1] !== undefined ? vDictEntry(+parts[1]) : vDict();
+  if (parts[0] === 'metrics') return vMetrics(parts[1]);
   if (parts[0] === 'prog') return vProgress();
   if (parts[0] === 'day' && parts[1]) viewDate = parts[1];
   return vDay();
@@ -306,6 +349,7 @@ function render() {
 const NAV = [
   { h:'', label:'Today', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>' },
   { h:'dict', label:'Exercises', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V6a2 2 0 0 1 2-2h14v13H6a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h14"/><path d="M9 8h7"/></svg>' },
+  { h:'metrics', label:'Metrics', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9h18v6H3zM7 9v3M11 9v4M15 9v3M19 9v4"/></svg>' },
   { h:'prog', label:'Data', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-8M21 20H3"/></svg>' }
 ];
 function drawNav(active) {
@@ -471,6 +515,8 @@ function vExercise(i, k, idx) {
     (lastLine ? '<div class="lastline">📈 ' + esc(lastLine) + '</div>' : '') +
     (p.notes ? '<div class="card" style="padding:11px 14px"><div class="tiny" style="margin-bottom:3px">COACH NOTES</div><div style="font-size:14px;color:#c6cddb">' + esc(p.notes) + '</div></div>' : '') +
     (p.load ? '<details class="acc"><summary>Starting load guidance</summary><div class="bd">' + esc(p.load) + '</div></details>' : '') +
+    '<button class="bigbtn sec" style="margin:10px 0 4px" onclick="location.hash=\'dict/' + p.ex + '\'">📖 Full exercise guide</button>' +
+    (timerCfg(p) ? '<button class="bigbtn start" onclick="A.startTimer(' + pid + ')"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Start exercise — guided tempo</button>' : '') +
     '<div class="card"><h3 style="font-size:15px;margin-bottom:4px">Log your sets</h3>' + setsHTML +
     '<button class="addset" onclick="A.addSet(' + i + ',' + pid + ')">+ add extra set</button>' +
     '<div class="painrow"><span class="muted" style="flex:none">Pain</span>' +
@@ -479,8 +525,219 @@ function vExercise(i, k, idx) {
     '<textarea class="note" placeholder="Notes (symptoms, tweaks, machine settings…)" onchange="A.setNote(' + i + ',' + pid + ',this.value)">' + esc(l.note || '') + '</textarea>' +
     '</div>' +
     '<button class="bigbtn ' + (l.done ? 'done' : '') + '" onclick="A.markDone(' + i + ',' + pid + ',' + idx + ',\'' + k + '\')">' + (l.done ? '✓ Completed — tap to undo' : 'Mark as completed') + '</button>' +
-    '<button class="linkbtn" onclick="location.hash=\'dict/' + p.ex + '\'">📖 Full exercise guide — setup, technique, safety ›</button>' +
     '<div style="height:16px"></div>';
+  $app.innerHTML = html;
+}
+
+/* ---------- tempo timer ---------- */
+function midOfRange(str) {
+  const m = String(str).match(/(\d+)(?:\s*-\s*(\d+))?/);
+  if (!m) return null;
+  return m[2] ? Math.round((+m[1] + +m[2]) / 2) : +m[1];
+}
+function parseTempoPhases(tempo) {
+  if (!tempo || !/\d\s*s\b/.test(tempo)) return null;
+  const phases = [];
+  tempo.split(',').forEach(seg => {
+    seg = seg.trim(); if (!seg) return;
+    const m = seg.match(/^(?:~)?(\d+)(?:\s*-\s*(\d+))?\s*s\s+(.+)$/);
+    if (m) {
+      const dur = m[2] ? Math.round((+m[1] + +m[2]) / 2) : +m[1];
+      let label = m[3].replace(/\beach .*$/,'').trim();
+      phases.push({ label: label || 'move', dur: Math.max(1, dur) });
+    } else {
+      const m2 = seg.match(/^(controlled|slow)\s+(.+)$/i);
+      if (m2) phases.push({ label: m2[2].trim(), dur: 2 });
+    }
+  });
+  return phases.length ? phases : null;
+}
+function parseTimeSec(str) {
+  if (!str) return null;
+  let m = String(str).match(/(\d+)(?:\s*-\s*(\d+))?\s*min/i);
+  if (m) return (m[2] ? Math.round((+m[1] + +m[2]) / 2) : +m[1]) * 60;
+  m = String(str).match(/(\d+)(?:\s*-\s*(\d+))?\s*s\b/);
+  if (m) return m[2] ? Math.round((+m[1] + +m[2]) / 2) : +m[1];
+  return null;
+}
+function timerCfg(p) {
+  const ex = EX[p.ex];
+  const sides = /\/\s*side|per side|per leg|per arm|\/\s*leg|\/\s*arm/i.test((p.reps || '') + ' ' + (p.dur || ''));
+  const sets = parseInt(p.sets) || 1;
+  const restSec = parseTimeSec(p.rest) || 0;
+  if (isRepBased(p)) {
+    const phases = parseTempoPhases(p.tempo);
+    if (!phases) return null;
+    const reps = midOfRange(p.reps);
+    if (!reps) return null;
+    return { title: ex.name, mode: 'reps', sets, reps, phases, restSec, sides, tempo: p.tempo };
+  }
+  const holdSec = parseTimeSec(p.dur) || parseTimeSec(p.tempo);
+  if (!holdSec) return null;
+  return { title: ex.name, mode: 'time', sets, holdSec, restSec, sides, tempo: p.dur || p.tempo };
+}
+const T = { on: false, iv: null, wl: null };
+function vib(pat) { try { if (navigator.vibrate) navigator.vibrate(pat); } catch (e) {} }
+async function wakeOn() { try { T.wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function wakeOff() { try { if (T.wl) { T.wl.release(); T.wl = null; } } catch (e) {} }
+document.addEventListener('visibilitychange', () => {
+  if (T.on && document.visibilityState === 'visible' && !T.paused) wakeOn();
+});
+function timerQueueForSet(cfg) {
+  const q = [{ kind: 'ready', label: 'Get ready', dur: 5 }];
+  const work = [];
+  if (cfg.mode === 'reps') {
+    for (let r = 1; r <= cfg.reps; r++) cfg.phases.forEach(ph => work.push({ kind: 'phase', label: ph.label, dur: ph.dur, rep: r }));
+  } else {
+    work.push({ kind: 'phase', label: 'Hold / work', dur: cfg.holdSec, rep: 1 });
+  }
+  q.push(...work);
+  if (cfg.sides) {
+    q.push({ kind: 'switch', label: 'Switch sides', dur: 5 });
+    work.forEach(w => q.push(Object.assign({}, w, { side2: true })));
+  }
+  return q;
+}
+function startTimer(cfg) {
+  T.on = true; T.cfg = cfg; T.set = 1; T.q = timerQueueForSet(cfg); T.qi = 0; T.sec = 0;
+  T.paused = false; T.doneAll = false;
+  wakeOn(); vib(60);
+  clearInterval(T.iv);
+  T.iv = setInterval(timerTick, 1000);
+  drawTimer();
+}
+function stopTimer() {
+  T.on = false; clearInterval(T.iv); T.iv = null; wakeOff();
+  document.getElementById('overlay').innerHTML = '';
+}
+function timerAdvance() {
+  T.sec = 0; T.qi++;
+  const cur = T.q[T.qi];
+  if (!cur) { // work queue finished for this set
+    if (T.set < T.cfg.sets) {
+      vib([80, 60, 80]);
+      if (T.cfg.restSec > 0) { T.q = [{ kind: 'rest', label: 'Rest', dur: T.cfg.restSec }]; T.qi = 0; }
+      else { T.set++; T.q = timerQueueForSet(T.cfg); T.qi = 0; }
+    } else {
+      T.doneAll = true; clearInterval(T.iv); T.iv = null; vib([100, 70, 100, 70, 250]); wakeOff();
+    }
+    return;
+  }
+  if (cur.kind === 'phase' && T.cfg.mode === 'reps') {
+    const prev = T.q[T.qi - 1];
+    if (!prev || prev.kind !== 'phase' || prev.rep !== cur.rep) vib(35);
+  } else vib(45);
+}
+function timerTick() {
+  if (T.paused || T.doneAll) return;
+  T.sec++;
+  const cur = T.q[T.qi];
+  if (cur && T.sec >= cur.dur) {
+    if (cur.kind === 'rest') { T.set++; T.q = timerQueueForSet(T.cfg); T.qi = -1; }
+    timerAdvance();
+  }
+  drawTimer();
+}
+function ensureTimerDOM() {
+  const o = document.getElementById('overlay');
+  if (o.querySelector('.tmr')) return;
+  o.innerHTML =
+    '<div class="tmr"><div class="hd"><div class="nm">' + esc(T.cfg.title) + '</div>' +
+    '<div class="meta" id="t-meta"></div><div class="dots" id="t-dots"></div></div>' +
+    '<div class="mid"><div class="phase" id="t-phase"></div>' +
+    '<div class="cnt" id="t-cnt"></div><div class="sub" id="t-sub"></div></div>' +
+    '<div class="ctl" id="t-ctl"></div></div>';
+  drawTimerCtl();
+}
+function drawTimerCtl() {
+  const c = document.getElementById('t-ctl'); if (!c) return;
+  c.innerHTML = T.doneAll
+    ? '<button class="primary" onclick="A.timerEnd()">Log my sets</button>'
+    : '<button onclick="A.timerPause()">' + (T.paused ? 'Resume' : 'Pause') + '</button>' +
+      '<button onclick="A.timerSkip()">Skip ›</button>' +
+      '<button class="exit" onclick="A.timerEnd()">End</button>';
+}
+function drawTimer() {
+  if (!T.on) return;
+  ensureTimerDOM();
+  const cfg = T.cfg, cur = T.q[T.qi];
+  let phaseCls = '', label = '', big = '', sub = '', repLine = '';
+  if (T.doneAll) {
+    label = 'Complete 🎉'; big = '✓'; sub = 'Nice work. Log your actual sets, reps and RIR below.';
+  } else if (cur) {
+    label = cur.label;
+    phaseCls = cur.kind === 'rest' ? 'rest' : (cur.kind === 'ready' || cur.kind === 'switch') ? 'ready' : '';
+    const remain = cur.dur - T.sec;
+    if (cur.kind === 'rest') {
+      const r = Math.max(0, remain);
+      big = Math.floor(r / 60) + ':' + String(r % 60).padStart(2, '0');
+      sub = 'Next: set ' + (T.set + 1) + ' of ' + cfg.sets;
+    } else if (cur.kind === 'ready' || cur.kind === 'switch') {
+      big = String(Math.max(0, remain));
+      sub = cur.kind === 'switch' ? 'Same again on the other side' : (cfg.mode === 'reps' ? 'Set ' + T.set + ' — ' + cfg.reps + ' reps at tempo' : 'Set ' + T.set);
+    } else {
+      big = String(Math.min(T.sec + 1, cur.dur));
+      sub = cfg.tempo || '';
+      if (cfg.mode === 'reps') repLine = 'Rep <b>' + cur.rep + '</b> of ' + cfg.reps + (cfg.sides ? (cur.side2 ? ' · second side' : ' · first side') : '');
+    }
+  }
+  document.getElementById('t-meta').innerHTML = 'Set <b>' + Math.min(T.set, cfg.sets) + '</b> of ' + cfg.sets + (repLine ? ' · ' + repLine : '');
+  document.getElementById('t-dots').innerHTML = Array.from({ length: cfg.sets }, (_, s) =>
+    '<span class="' + (s + 1 < T.set || T.doneAll ? 'on' : s + 1 === T.set ? 'cur' : '') + '"></span>').join('');
+  const ph = document.getElementById('t-phase');
+  ph.className = 'phase ' + phaseCls; ph.textContent = label;
+  document.getElementById('t-cnt').textContent = big;
+  document.getElementById('t-sub').textContent = sub;
+  if (T.doneAll && !document.querySelector('#t-ctl .primary')) drawTimerCtl();
+}
+
+/* ---------- view: metrics ---------- */
+const METRICS = [
+  { k: 'weight', label: 'Body weight', u: 'kg', s: 'wt' },
+  { k: 'chest', label: 'Chest', u: 'cm', s: 'chest' },
+  { k: 'waist', label: 'Waist (navel)', u: 'cm', s: 'waist' },
+  { k: 'hips', label: 'Hips', u: 'cm', s: 'hips' },
+  { k: 'armL', label: 'Upper arm — left', u: 'cm', s: 'arm L' },
+  { k: 'armR', label: 'Upper arm — right', u: 'cm', s: 'arm R' },
+  { k: 'thighL', label: 'Thigh — left (15 cm above kneecap)', u: 'cm', s: 'thigh L' },
+  { k: 'thighR', label: 'Thigh — right (15 cm above kneecap)', u: 'cm', s: 'thigh R' },
+  { k: 'calfL', label: 'Calf — left', u: 'cm', s: 'calf L' },
+  { k: 'calfR', label: 'Calf — right', u: 'cm', s: 'calf R' }
+];
+function lastMetricBefore(k, dateISO) {
+  const ds = Object.keys(S.metrics).filter(d => d < dateISO && S.metrics[d][k] != null).sort();
+  return ds.length ? S.metrics[ds[ds.length - 1]][k] : null;
+}
+function vMetrics(dateArg) {
+  drawNav('metrics');
+  const date = dateArg || todayISO();
+  const entry = S.metrics[date] || {};
+  let html = '<div class="topbar"><h2 style="font-size:20px;padding:6px 0 2px">Measurements</h2></div>' +
+    '<div class="card"><div style="display:flex;align-items:center;gap:10px;justify-content:space-between">' +
+    '<span class="muted">Measuring on</span>' +
+    '<input type="date" class="mdate" value="' + date + '" onchange="location.hash=\'metrics/\'+this.value">' +
+    '</div><p class="tiny" style="margin:8px 0 2px">Measure relaxed, same time of day (ideally Thursday morning, per the programme). Grey = your previous reading. Fill only what you measured — it saves as you type.</p></div>' +
+    '<div class="card">';
+  METRICS.forEach(m => {
+    const prev = lastMetricBefore(m.k, date);
+    html += '<div class="mrow"><label>' + m.label + ' <span class="u">' + m.u + '</span></label>' +
+      '<input type="number" inputmode="decimal" step="0.1" min="0" placeholder="' + (prev != null ? prev : '') + '" value="' + (entry[m.k] != null ? entry[m.k] : '') + '" onchange="A.setMetric(\'' + date + '\',\'' + m.k + '\',this.value)"></div>';
+  });
+  html += '</div>';
+  const hist = Object.keys(S.metrics).filter(d => Object.keys(S.metrics[d]).length).sort().reverse();
+  if (hist.length) {
+    html += '<div class="phasehead">History</div><div class="card" style="padding:4px 16px">';
+    hist.forEach(d => {
+      const e = S.metrics[d];
+      const vals = METRICS.filter(m => e[m.k] != null).map(m => m.s + ' ' + e[m.k]).join(' · ');
+      html += '<div class="mhist"><span class="dt">' + fmt(d) + '</span>' +
+        '<span class="vals" onclick="location.hash=\'metrics/' + d + '\'">' + esc(vals) + '</span>' +
+        '<button class="del" onclick="A.delMetric(\'' + d + '\')">🗑</button></div>';
+    });
+    html += '</div>';
+    html += '<button class="exportbtn" onclick="A.exportMetrics(true)">📤 Share measurements (CSV)</button>';
+  }
+  html += '<div style="height:16px"></div>';
   $app.innerHTML = html;
 }
 
@@ -550,7 +807,8 @@ function vProgress() {
   html += '<div class="phasehead">Export for Friday review</div>' +
     '<button class="exportbtn" onclick="A.exportCSV(true)">📤 Share training log (CSV)</button>' +
     '<button class="exportbtn" onclick="A.exportCSV(false)">⬇️ Download training log (CSV)</button>' +
-    '<p class="tiny" style="margin:4px 2px">Send this CSV to Claude in the “My Personal Trainer” project each Friday for your weekly review.</p>' +
+    '<button class="exportbtn" onclick="A.exportMetrics(true)">📏 Share measurements (CSV)</button>' +
+    '<p class="tiny" style="margin:4px 2px">Send these CSVs to Claude in the “My Personal Trainer” project each Friday for your weekly review — the measurements feed the dashboard.</p>' +
     '<div class="phasehead">Backup</div>' +
     '<button class="exportbtn" onclick="A.backup()">💾 Download full backup (JSON)</button>' +
     '<button class="exportbtn" onclick="document.getElementById(\'restoreFile\').click()">📥 Restore from backup</button>' +
@@ -622,6 +880,55 @@ window.A = {
     else render();
   },
   dictSearch(v) { dictQ = v; vDict(); },
+  startTimer(pid) {
+    const cfg = timerCfg(PR[pid]); if (!cfg) return;
+    startTimer(cfg);
+  },
+  timerPause() {
+    T.paused = !T.paused;
+    if (T.paused) wakeOff(); else wakeOn();
+    drawTimerCtl(); drawTimer();
+  },
+  timerSkip() {
+    const cur = T.q[T.qi];
+    if (cur && cur.kind === 'rest') { T.set++; T.q = timerQueueForSet(T.cfg); T.qi = -1; }
+    timerAdvance(); drawTimer();
+  },
+  timerEnd() {
+    stopTimer();
+    const logCard = document.querySelector('.setrow');
+    if (logCard) logCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
+  setMetric(date, k, v) {
+    if (!S.metrics[date]) S.metrics[date] = {};
+    if (v === '') delete S.metrics[date][k];
+    else S.metrics[date][k] = parseFloat(v);
+    if (!Object.keys(S.metrics[date]).length) delete S.metrics[date];
+    save();
+  },
+  delMetric(date) {
+    modal('Delete these measurements?', fmt(date) + ' — this entry will be removed.', 'Delete', () => {
+      delete S.metrics[date]; save();
+      location.hash = 'metrics'; render();
+    });
+  },
+  exportMetrics(share) {
+    const dates = Object.keys(S.metrics).filter(d => Object.keys(S.metrics[d]).length).sort();
+    if (!dates.length) return toast('No measurements yet');
+    const rows = [['date'].concat(METRICS.map(m => m.k + '_' + (m.u === 'kg' ? 'kg' : 'cm')))];
+    dates.forEach(d => rows.push([d].concat(METRICS.map(m => S.metrics[d][m.k] != null ? S.metrics[d][m.k] : ''))));
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const name = 'measurements_' + todayISO() + '.csv';
+    const file = new File([csv], name, { type: 'text/csv' });
+    if (share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Measurements' }).catch(() => {});
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      toast('CSV downloaded');
+    }
+  },
   exportCSV(share) {
     const rows = [['week','day','planned_date','logged_at','traffic_light','component','exercise','set','planned_sets','planned_reps_or_duration','target_rir','weight_kg','reps_done','rir','set_done','exercise_completed','pain_0_10','notes']];
     DAYS.forEach((d, i) => {
@@ -666,8 +973,9 @@ window.A = {
       try {
         const obj = JSON.parse(txt);
         if (typeof obj.logs !== 'object' || obj.logs === null) throw 0;
-        S = Object.assign({ gaps: [], logs: {}, lights: {} }, obj);
+        S = Object.assign({ gaps: [], logs: {}, lights: {}, metrics: {} }, obj);
         if (!Array.isArray(S.gaps)) S.gaps = [];
+        if (!S.metrics || typeof S.metrics !== 'object') S.metrics = {};
         invalidateEff(); save();
         toast('Backup restored ✓'); render();
       } catch (e) { toast('That file is not a valid backup'); }
@@ -676,7 +984,7 @@ window.A = {
   },
   wipe() {
     modal('Erase everything?', 'All logged weights, reps, pain scores and postponements on this phone will be deleted. Export a backup first!', 'Erase', () => {
-      S = { gaps: [], logs: {}, lights: {} }; invalidateEff(); save(); toast('All data erased'); render();
+      S = { gaps: [], logs: {}, lights: {}, metrics: {} }; invalidateEff(); save(); toast('All data erased'); render();
     });
   }
 };
