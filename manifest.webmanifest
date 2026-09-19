@@ -1,12 +1,12 @@
 {
-  "name": "My Trainer — 16 Week Programme",
+  "name": "My Trainer — Programme 2",
   "short_name": "My Trainer",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0c101a",
-  "theme_color": "#0c101a",
-  "description": "Personal 16-week hypertrophy & foundation programme tracker",
+  "background_color": "#0B0F14",
+  "theme_color": "#0B0F14",
+  "description": "Rebuild & Grow: 74-day hypertrophy + foundation programme tracker",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
