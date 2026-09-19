@@ -1,5 +1,5 @@
-// My Trainer service worker - v5 (Programme 2 release, 2026-09-18)
-const CACHE = 'mytrainer-v5';
+// My Trainer service worker - v6 (2026-09-19: postpone any past day)
+const CACHE = 'mytrainer-v6';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

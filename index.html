@@ -385,7 +385,7 @@ function drawNav(active) {
 /* ---------- view: day ---------- */
 function shiftBannerHTML() {
   const n = S.gaps.length; if (!n) return '';
-  return '<div class="shiftbanner">📅 Postponed ' + n + ' day' + (n>1?'s':'') + ' — the programme now ends ' + fmt(effDate(DAYS.length-1)) + '. <button onclick="A.unshift()">Undo last</button></div>';
+  return '<div class="shiftbanner">📅 Postponed ' + n + ' day' + (n>1?'s':'') + ' — the programme now ends ' + fmt(effDate(DAYS.length-1)) + '. <button onclick="A.unshift()">Undo latest</button></div>';
 }
 function weekStripHTML(i) {
   const w = DAYS[i].week; const first = DAYS.findIndex(d => d.week === w);
@@ -463,7 +463,9 @@ function vDay() {
       '</div><div class="arr">›</div></div>';
   });
   html += checkinHTML(i);
-  if (isToday) html += '<button class="postpone" onclick="A.postpone()">🛌 Can\'t train today? Postpone — the whole programme moves to tomorrow</button>';
+  if (viewDate <= t) html += '<button class="postpone" onclick="A.postpone(\'' + viewDate + '\')">' + (isToday
+    ? '🛌 Can\'t train today? Postpone — the whole programme moves to tomorrow'
+    : '🛌 Couldn\'t train this day? Mark it as a rest day — everything from here moves forward one day') + '</button>';
   html += '<div class="spacer"></div>';
   $app.innerHTML = html;
 }
@@ -830,7 +832,7 @@ function vProgress() {
     '<button class="exportbtn" onclick="document.getElementById(\'restoreFile\').click()">📥 Restore from backup</button>' +
     '<input type="file" id="restoreFile" accept=".json" style="display:none" onchange="A.restore(this)">' +
     '<div class="phasehead">Danger zone</div><div class="dangerzone"><button class="exportbtn" onclick="A.wipe()">🗑 Erase all logged data</button></div>' +
-    '<p class="tiny" style="margin:8px 2px">' + esc(DATA.version) + ' · app v3.0 · data stays on this phone only' + (storageOK ? '' : ' · ⚠️ storage unavailable — export after every session') + '</p><div class="spacer"></div>';
+    '<p class="tiny" style="margin:8px 2px">' + esc(DATA.version) + ' · app v3.1 · data stays on this phone only' + (storageOK ? '' : ' · ⚠️ storage unavailable — export after every session') + '</p><div class="spacer"></div>';
   $app.innerHTML = html;
 }
 
@@ -848,13 +850,28 @@ window.A = {
   moveDay(n) { viewDate = addD(viewDate, n); location.hash = 'day/' + viewDate; if (location.hash === '#day/' + viewDate) render(); },
   jumpToday() { viewDate = todayISO(); location.hash = 'day/' + viewDate; },
   setLight(i, L) { const d = DAYS[i].date; S.lights[d] = S.lights[d] === L ? null : L; save(); render(); },
-  postpone() {
-    modal('Postpone to tomorrow?', 'Today becomes a rest day, and today\'s session plus the <b>entire remaining programme</b> move forward one day. Nothing is skipped — the finish date just moves a day later.', 'Postpone', () => {
-      const t = todayISO(); if (S.gaps.indexOf(t) === -1) S.gaps.push(t);
-      invalidateEff(); save(); toast('Programme moved +1 day 👍'); viewDate = t; render();
+  postpone(dateISO) {
+    const d = dateISO || todayISO();
+    if (d > todayISO()) return toast('You can only postpone today or a past day');
+    if (S.gaps.indexOf(d) !== -1) return toast('That day is already a rest day');
+    const isToday = d === todayISO();
+    const i = dayByEff(d); const lg = i >= 0 ? dayProgress(i)[0] : 0;
+    modal(isToday ? 'Postpone to tomorrow?' : 'Mark ' + fmt(d) + ' as a rest day?',
+      (isToday ? 'Today becomes a rest day, and today\'s session plus the <b>entire remaining programme</b> move forward one day.'
+               : fmt(d) + ' becomes a rest day. Its session and <b>everything after it</b> move forward one calendar day, so the session you missed becomes the next one due.') +
+      ' Nothing is skipped — the finish date just moves a day later.' +
+      (lg ? '<br><br>⚠️ You logged ' + lg + ' exercise' + (lg > 1 ? 's' : '') + ' on this day; that data stays attached to the session and will show on its new date.' : ''),
+      isToday ? 'Postpone' : 'Mark as rest day', () => {
+        S.gaps.push(d); S.gaps.sort();
+        invalidateEff(); save(); toast('Programme moved +1 day 👍'); viewDate = d; render();
+      });
+  },
+  unshift() {
+    const g = S.gaps.slice().sort(); const last = g[g.length - 1];
+    modal('Undo the rest day on ' + fmt(last) + '?', 'That day becomes a training day again and the programme moves back one day.', 'Move back', () => {
+      S.gaps = S.gaps.filter(x => x !== last); invalidateEff(); save(); render();
     });
   },
-  unshift() { modal('Undo postponement?', 'The most recent postponed day is removed and the programme moves back one day.', 'Move back', () => { S.gaps.pop(); invalidateEff(); save(); render(); }); },
   setVal(i, pid, s, f, v) { const l = exLog(i, pid, true); while (l.sets.length <= s) l.sets.push({}); l.sets[s][f] = v === '' ? null : (f === 'rir' ? v : parseFloat(v)); l.ts = l.ts || new Date().toISOString(); save(); },
   toggleSet(i, pid, s) { const l = exLog(i, pid, true); while (l.sets.length <= s) l.sets.push({}); l.sets[s].d = !l.sets[s].d; l.ts = new Date().toISOString(); save(); render(); },
   addSet(i, pid) { const l = exLog(i, pid, true); const n = Math.max(parseInt(PR[pid].sets) || 1, l.sets.length); while (l.sets.length < n + 1) l.sets.push({}); save(); render(); },
